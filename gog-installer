@@ -1,0 +1,55 @@
+#!/bin/bash
+
+if [ "$1" == "" ]; then
+  echo "gog-installer: No game specified."
+  echo "Try 'gog-installer --help' for more information."
+  exit 1
+fi
+
+if [ "$1" == "--help" ]; then
+  echo "Usage: gog-installer [OPTIONS] GAME"
+  echo "Installs a game downloaded from GOG.com."
+  echo ""
+  echo "Options:"
+  echo "      --list      list all currently supported games"
+  echo "      --help      display this help and exit"
+  exit 0
+fi
+
+GAME_SCRIPTS_DIR="."
+GAMES=$(find $GAME_SCRIPTS_DIR -name "*_gog-installer" -exec basename "{}" _gog-installer \;)
+
+if [ "$1" == "--list" ]; then
+  echo "Currently supported games:"
+  for g in $GAMES; do
+    echo "  $g"
+  done
+  exit 0
+fi
+
+if [[ $1 == --* ]]; then
+  echo "gog-installer: unrecognized option '$1'"
+  echo "Try 'gog-installer --help' for more information."
+  exit 1
+fi
+
+# Checking prerequisites...
+if ! which innoextract >/dev/null; then
+  echo "ERROR: The command 'innoextract' wasn't found. You can install 'innoextract' from your distro repositories or check [https://github.com/dscharrer/InnoExtract/]." 
+  exit 1
+fi
+if ! which dosbox >/dev/null; then
+  echo "WARNING: The command 'dosbox' wasn't found. While the game will install, you won't be able to play it. You can install 'dosbox' from your distro repositories or check [http://www.dosbox.com]." 
+fi
+
+GOG_TMP_DIR="gog-installer.tmp"
+
+for g in $GAMES; do
+  if [[ $1 == $g ]]; then
+    . "$GAME_SCRIPTS_DIR/$1_gog-installer"
+    exit 0
+  fi
+done
+
+echo "gog-installer: game '$1' isn't supported (or doesn't exist)."
+exit 1
