@@ -16,14 +16,17 @@ if [ "$1" == "--help" ]; then
   exit 0
 fi
 
-GAME_SCRIPTS_DIR="."
-GAMES=$(find $GAME_SCRIPTS_DIR -name "*_gog-installer" -exec basename "{}" _gog-installer \;)
+GAME_SCRIPTS_DIR=$(readlink -f games_conf)
+GAMES=$(find $GAME_SCRIPTS_DIR -name *.conf -exec basename "{}" .conf \;)
 
 if [ "$1" == "--list" ]; then
   echo "Currently supported games:"
   for g in $GAMES; do
     echo "  $g"
   done
+  if [ "$GAMES" == "" ]; then
+    echo "  none"
+  fi
   exit 0
 fi
 
@@ -33,20 +36,56 @@ if [[ $1 == --* ]]; then
   exit 1
 fi
 
-# Checking prerequisites...
+# Checking global prerequisites
 if ! which innoextract >/dev/null; then
   echo "ERROR: The command 'innoextract' wasn't found. You can install 'innoextract' from your distro repositories or check [https://github.com/dscharrer/InnoExtract/]." 
   exit 1
 fi
-if ! which dosbox >/dev/null; then
-  echo "WARNING: The command 'dosbox' wasn't found. While the game will install, you won't be able to play it. You can install 'dosbox' from your distro repositories or check [http://www.dosbox.com]." 
-fi
 
-GOG_TMP_DIR="gog-installer.tmp"
+GOG_TMP_DIR="/tmp/gog-installer_$(whoami)"
 
 for g in $GAMES; do
   if [[ $1 == $g ]]; then
-    . "$GAME_SCRIPTS_DIR/$1_gog-installer"
+    source "$GAME_SCRIPTS_DIR/$1.conf"
+    # Checking game prerequisites
+    for p in $PREREQS; do
+      if ! which $p >/dev/null; then
+        echo "WARNING: The command '$p' wasn't found; the game will install, but you won't be able to play it until you fix this."
+      fi
+    done
+    # Checking for original setup file
+    if [ ! -f $SETUP ]; then
+      echo "ERROR: The setup file ($SETUP) wasn't found. Download it from your GOG account, then run this installer from the same directory."
+      exit 1
+    fi
+    # Setting up the install dir
+    INSTALL_DIR="$(pwd)/$1-gog"
+    if [ -d $INSTALL_DIR ]; then
+      echo "ERROR: The directory '$INSTALL_DIR' already exists; aborting to prevent overwriting your files."
+      exit 1
+    fi
+    mkdir -p $INSTALL_DIR
+    echo "Installing $FULLNAME into '$INSTALL_DIR'..."
+    mkdir -p $GOG_TMP_DIR
+    FULLSETUP=$(readlink -f $SETUP)
+    cd $GOG_TMP_DIR
+    innoextract --silent $FULLSETUP
+    mv app/* $INSTALL_DIR
+    mv tmp/gog_EULA.txt $INSTALL_DIR
+    rm $INSTALL_DIR/goggame.dll
+    rm $INSTALL_DIR/Support.ico
+    rm $INSTALL_DIR/innosetup_license.txt
+    #less $INSTALL_DIR/gog_EULA.txt
+    # Running post-install when needed
+    POST_INSTALL="$GAME_SCRIPTS_DIR/$1.post-install"
+    if [ -f $POST_INSTALL ]; then
+      echo "Running post-install setup..."
+      . $POST_INSTALL
+    fi 
+    # final clean
+    cd 
+    rm -rf $GOG_TMP_DIR
+    echo "Done!"
     exit 0
   fi
 done
