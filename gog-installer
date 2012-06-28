@@ -1,32 +1,17 @@
 #!/bin/bash
 
 if [ "$1" == "" ]; then
-  echo "gog-installer: No game specified."
+  echo "gog-installer: No game or option specified."
   echo "Try 'gog-installer --help' for more information."
   exit 1
 fi
 
 if [ "$1" == "--help" ]; then
-  echo "Usage: gog-installer [OPTIONS] GAME"
+  echo "Usage: gog-installer [OPTIONS] SETUP_FILE"
   echo "Installs a game downloaded from GOG.com."
   echo ""
   echo "Options:"
-  echo "      --list      list all currently supported games"
   echo "      --help      display this help and exit"
-  exit 0
-fi
-
-GAME_SCRIPTS_DIR=$(readlink -f games_conf)
-GAMES=$(find $GAME_SCRIPTS_DIR -name *.conf -exec basename "{}" .conf \;)
-
-if [ "$1" == "--list" ]; then
-  echo "Currently supported games:"
-  for g in $GAMES; do
-    echo "  $g"
-  done
-  if [ "$GAMES" == "" ]; then
-    echo "  none"
-  fi
   exit 0
 fi
 
@@ -38,57 +23,61 @@ fi
 
 # Checking global prerequisites
 if ! which innoextract >/dev/null; then
-  echo "ERROR: The command 'innoextract' wasn't found. You can install 'innoextract' from your distro repositories or check [https://github.com/dscharrer/InnoExtract/]." 
+  echo "ERROR: The command 'innoextract' wasn't found. Check [https://github.com/dscharrer/InnoExtract/]." 
   exit 1
 fi
 
 GOG_TMP_DIR="/tmp/gog-installer_$(whoami)"
 
-for g in $GAMES; do
-  if [[ $1 == $g ]]; then
-    source "$GAME_SCRIPTS_DIR/$1.conf"
-    # Checking game prerequisites
-    for p in $PREREQS; do
-      if ! which $p >/dev/null; then
-        echo "WARNING: The command '$p' wasn't found; the game will install, but you won't be able to play it until you fix this."
-      fi
-    done
-    # Checking for original setup file
-    if [ ! -f $SETUP ]; then
-      echo "ERROR: The setup file ($SETUP) wasn't found. Download it from your GOG account, then run this installer from the same directory."
-      exit 1
-    fi
-    # Setting up the install dir
-    INSTALL_DIR="$(pwd)/$1-gog"
-    if [ -d $INSTALL_DIR ]; then
-      echo "ERROR: The directory '$INSTALL_DIR' already exists; aborting to prevent overwriting your files."
-      exit 1
-    fi
-    mkdir -p $INSTALL_DIR
-    echo "Installing $FULLNAME into '$INSTALL_DIR'..."
-    mkdir -p $GOG_TMP_DIR
-    FULLSETUP=$(readlink -f $SETUP)
-    cd $GOG_TMP_DIR
-    innoextract --silent $FULLSETUP
-    mv app/* $INSTALL_DIR
-    mv tmp/gog_EULA.txt $INSTALL_DIR
-    rm $INSTALL_DIR/goggame.dll
-    rm $INSTALL_DIR/Support.ico
-    rm $INSTALL_DIR/innosetup_license.txt
-    #less $INSTALL_DIR/gog_EULA.txt
-    # Running post-install when needed
-    POST_INSTALL="$GAME_SCRIPTS_DIR/$1.post-install"
-    if [ -f $POST_INSTALL ]; then
-      echo "Running post-install setup..."
-      . $POST_INSTALL
-    fi 
-    # final clean
-    cd 
-    rm -rf $GOG_TMP_DIR
-    echo "Done!"
-    exit 0
-  fi
-done
+SETUP=$1
+
+if [ ! -f $SETUP ]; then
+  echo "ERROR: The game setup file ('$SETUP') wasn't found."
+  exit 1
+fi
+
+GAME=`echo $1 | sed 's/setup_\(.*\).exe/\1/'`
+if [ "$GAME" == "" ] || [ "$GAME" == "$SETUP" ]; then
+  echo "ERROR: Couldn't determine the game's name from the setup file. Recognized names are in the format 'setup_<name[_version]>.exe'."
+  exit 1
+fi
+
+INSTALL_DIR="$(pwd)/$GAME"
+if [ -d $INSTALL_DIR ]; then
+  echo "ERROR: The directory '$INSTALL_DIR' already exists; aborting to prevent overwriting your files."
+  exit 1
+fi
+if ! mkdir -p $INSTALL_DIR 2>/dev/null; then
+  echo "ERROR: Couldn't create directory '$INSTALL_DIR'. Check your permissions."
+  exit 1
+fi
+
+echo "Installing $GAME into '$INSTALL_DIR'..."
+
+if ! mkdir -p $GOG_TMP_DIR 2>/dev/null; then
+  echo "ERROR: Couldn't create temp dir ($GOG_TMP_DIR). Check your permissions."
+  exit 1
+fi
+
+SETUP_FULL=$(readlink -f $SETUP)
+
+cd $GOG_TMP_DIR
+
+innoextract $SETUP_FULL
+
+mv app/* $INSTALL_DIR
+rm $INSTALL_DIR/goggame.dll
+rm $INSTALL_DIR/Support.ico
+rm $INSTALL_DIR/innosetup_license.txt
+
+mv tmp/gog_EULA.txt $INSTALL_DIR
+#cat $INSTALL_DIR/gog_EULA.txt
+
+# final clean
+cd 
+rm -rf $GOG_TMP_DIR
+echo "Success! The game was repackaged into '$INSTALL_DIR'."
+exit 0
 
 echo "gog-installer: game '$1' isn't supported (or doesn't exist)."
 exit 1
