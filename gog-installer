@@ -65,13 +65,19 @@ cd $GOG_TMP_DIR
 
 innoextract $SETUP_FULL
 
-mv app/* $INSTALL_DIR
+cp app/* $INSTALL_DIR -rf
 rm $INSTALL_DIR/goggame.dll
 rm $INSTALL_DIR/Support.ico
 rm $INSTALL_DIR/innosetup_license.txt
 
-mv tmp/gog_EULA.txt $INSTALL_DIR
-#cat $INSTALL_DIR/gog_EULA.txt
+# Checking for dosbox.conf
+TMP_DEFAULT=$GOG_TMP_DIR/tmp/default/default/default/default
+if [ -d $TMP_DEFAULT ]; then
+  cp $TMP_DEFAULT/* $INSTALL_DIR -rf
+fi
+
+cp tmp/gog_EULA.txt $INSTALL_DIR -rf
+less $INSTALL_DIR/gog_EULA.txt
 
 # final clean
 cd 
